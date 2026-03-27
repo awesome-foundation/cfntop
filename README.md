@@ -21,6 +21,11 @@ Stacks are sorted by last update, with active deployments on top. Expand any sta
 
 ## Install
 
+**Homebrew**
+```bash
+brew install awesome-foundation/tap/cfntop
+```
+
 ### macOS (Apple Silicon)
 
 ```sh
