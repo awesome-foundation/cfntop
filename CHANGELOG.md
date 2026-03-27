@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/awesome-foundation/cfntop/compare/v0.2.0...v0.3.0) (2026-03-27)
+
+
+### Features
+
+* add demo mode, screenshot, and UI polish ([2cf8677](https://github.com/awesome-foundation/cfntop/commit/2cf8677654ed4204f2a027753f90de63c472df36))
+* demo mode, screenshot, and UI polish ([#4](https://github.com/awesome-foundation/cfntop/issues/4)) ([2cf8677](https://github.com/awesome-foundation/cfntop/commit/2cf8677654ed4204f2a027753f90de63c472df36))
+
 ## [0.2.0](https://github.com/awesome-foundation/cfntop/compare/v0.1.0...v0.2.0) (2026-03-27)
 
 
