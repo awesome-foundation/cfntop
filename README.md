@@ -4,6 +4,8 @@ Live TUI monitor for AWS CloudFormation stacks.
 
 Stacks are sorted by last update, with active deployments on top. Expand any stack to see its resources and their current status. ECS services show active deployments with task counts and failed task details.
 
+![cfntop screenshot](assets/screenshot.png)
+
 ## Features
 
 - Real-time polling of all CloudFormation stacks in a region
