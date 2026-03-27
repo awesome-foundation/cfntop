@@ -39,6 +39,20 @@ checksum:
 changelog:
   disable: true
 
+brews:
+  - repository:
+      owner: awesome-foundation
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/awesome-foundation/cfntop
+    description: Live TUI monitor for AWS CloudFormation stacks
+    license: MIT
+    install: |
+      bin.install "cfntop"
+    test: |
+      system bin/"cfntop", "--version"
+
 release:
   github:
     owner: awesome-foundation
