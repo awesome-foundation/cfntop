@@ -58,7 +58,24 @@ func NewModel(client *cfnaws.Client, ecsClient ECSAPI, interval time.Duration, h
 	}
 }
 
+// NewDemoModel creates a model preloaded with fake data for screenshots.
+func NewDemoModel() Model {
+	stacks := DemoStacks()
+	return Model{
+		stacks:          stacks,
+		interval:        999 * time.Hour, // never auto-poll
+		humanize:        true,
+		manualExpanded:  make(map[string]bool),
+		loadingStacks:   make(map[string]bool),
+		lastDetailFetch: make(map[string]time.Time),
+	}
+}
+
 func (m Model) Init() tea.Cmd {
+	if m.client == nil {
+		// Demo mode — no polling, just render
+		return nil
+	}
 	return tea.Batch(m.poll(), m.tick(), m.spinnerTick())
 }
 
@@ -287,7 +304,7 @@ func (m Model) View() string {
 
 	// Column header
 	if len(m.stacks) > 0 {
-		header := fmt.Sprintf("  %-22s  %-35s  %s", "UPDATED", "STATUS", "STACK")
+		header := fmt.Sprintf("  %-20s %-38s %s", "UPDATED", "STATUS", "STACK")
 		b.WriteString(headerStyle.Render(header) + "\n")
 	}
 
@@ -318,10 +335,13 @@ func (m Model) View() string {
 		}
 
 		styledStatus := statusStyle(s.Summary.Status).Render(s.Summary.Status)
-		line := fmt.Sprintf("  %s %-20s  %-35s  %s",
+		line := fmt.Sprintf("  %s %-18s  %-36s %s",
 			arrow, updated, styledStatus, s.Summary.StackName)
 
 		if i == m.cursor {
+			if m.width > len(line) {
+				line += strings.Repeat(" ", m.width-len(line))
+			}
 			line = selectedStyle.Render(line)
 		}
 
@@ -338,25 +358,43 @@ func (m Model) View() string {
 				r := rs.Resource
 				rTime := m.fmtTime(r.LastUpdated)
 
+				prefix := "      "
 				if rs.Deleted {
-					rLine := deletedStyle.Render(fmt.Sprintf("    × %-14s  %-20s  %-25s  %s",
-						rTime, r.Status, ShortenType(r.Type), r.LogicalID))
-					b.WriteString(rLine + "\n")
-					lines++
-					continue
+					prefix = "    × "
 				}
 
-				if !rs.Touched {
-					rLine := untouchedStyle.Render(fmt.Sprintf("      %-14s  %-20s  %-25s  %s",
-						rTime, r.Status, ShortenType(r.Type), r.LogicalID))
-					b.WriteString(rLine + "\n")
-					lines++
-					continue
+				// Pick the style for this resource's fields
+				var rStyle func(string) string
+				if rs.Deleted {
+					rStyle = func(s string) string { return deletedStyle.Render(s) }
+				} else if !rs.Touched {
+					rStyle = func(s string) string { return untouchedStyle.Render(s) }
+				} else {
+					st := statusStyle(r.Status)
+					rStyle = func(s string) string { return st.Render(s) }
 				}
 
-				rStatus := statusStyle(r.Status).Render(r.Status)
-				rLine := fmt.Sprintf("      %-14s  %-20s  %-25s  %s",
-					rTime, rStatus, ShortenType(r.Type), r.LogicalID)
+				// Pad status before styling so visual width is consistent
+				paddedStatus := fmt.Sprintf("%-26s", r.Status)
+				rLine := fmt.Sprintf("%s%-18s  %s %-25s  %s",
+					prefix, rTime, rStyle(paddedStatus), ShortenType(r.Type), r.LogicalID)
+
+				if !rs.Touched && !rs.Deleted {
+					// Grey out the non-status parts too
+					rLine = fmt.Sprintf("%s%s  %s %s  %s",
+						untouchedStyle.Render(prefix),
+						untouchedStyle.Render(fmt.Sprintf("%-18s", rTime)),
+						rStyle(paddedStatus),
+						untouchedStyle.Render(fmt.Sprintf("%-25s", ShortenType(r.Type))),
+						untouchedStyle.Render(r.LogicalID))
+				} else if rs.Deleted {
+					rLine = fmt.Sprintf("%s%s  %s %s  %s",
+						deletedStyle.Render(prefix),
+						deletedStyle.Render(fmt.Sprintf("%-18s", rTime)),
+						rStyle(paddedStatus),
+						deletedStyle.Render(fmt.Sprintf("%-25s", ShortenType(r.Type))),
+						deletedStyle.Render(r.LogicalID))
+				}
 				b.WriteString(rLine + "\n")
 				lines++
 
@@ -375,7 +413,7 @@ func (m Model) View() string {
 							taskInfo += ", " + redStyle.Render(fmt.Sprintf("%d failed", d.Failed))
 						}
 						dStatus := statusStyle(d.RolloutState).Render(d.Status)
-						dLine := fmt.Sprintf("        %-12s  %-10s  %-30s  %s",
+						dLine := fmt.Sprintf("        %-18s  %-10s %-30s  %s",
 							dTime, dStatus, d.TaskDefinition, taskInfo)
 						b.WriteString(dLine + "\n")
 						lines++
@@ -390,7 +428,7 @@ func (m Model) View() string {
 							if reason == "" {
 								reason = ft.StopCode
 							}
-							ftLine := fmt.Sprintf("          %-10s  %s  %s",
+							ftLine := fmt.Sprintf("          %-16s %s  %s",
 								ftTime, redStyle.Render("STOPPED"), redStyle.Render(reason))
 							b.WriteString(ftLine + "\n")
 							lines++
@@ -398,9 +436,10 @@ func (m Model) View() string {
 					}
 				}
 
-				// Show event history for errored resources
+				// Show event history for errored resources (newest first)
 				if rs.HasError {
-					for _, e := range rs.Events {
+					for ei := len(rs.Events) - 1; ei >= 0; ei-- {
+						e := rs.Events[ei]
 						if lines >= visible {
 							break
 						}
@@ -410,7 +449,7 @@ func (m Model) View() string {
 						if e.StatusReason != "" {
 							reason = "  " + redStyle.Render(e.StatusReason)
 						}
-						eLine := fmt.Sprintf("        %-12s  %s%s", eTime, eStatus, reason)
+						eLine := fmt.Sprintf("        %-18s  %s%s", eTime, eStatus, reason)
 						b.WriteString(eLine + "\n")
 						lines++
 					}

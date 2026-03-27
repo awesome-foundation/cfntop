@@ -142,18 +142,14 @@ func buildResourceStates(resources []model.Resource, events []model.StackEvent, 
 		})
 	}
 
-	// Sort: errors first, then active, then complete (by most recent update desc), then deleted
+	// Sort: errors first, then active, then by most recent update descending
 	sort.Slice(states, func(i, j int) bool {
 		ri, rj := states[i], states[j]
-		// Deleted always last
-		if ri.Deleted != rj.Deleted {
-			return !ri.Deleted
-		}
 		// Errors first
 		if ri.HasError != rj.HasError {
 			return ri.HasError
 		}
-		// Active before complete
+		// Active before complete/deleted
 		iActive := isActive(ri.Resource.Status)
 		jActive := isActive(rj.Resource.Status)
 		if iActive != jActive {
