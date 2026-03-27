@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/awesome-foundation/cfntop/compare/v0.3.0...v0.4.0) (2026-03-27)
+
+
+### Features
+
+* add Homebrew formula via awesome-foundation/homebrew-tap ([f1bf311](https://github.com/awesome-foundation/cfntop/commit/f1bf311d55264d008b8ae9c090b541ccd9181a31))
+* Homebrew formula ([#6](https://github.com/awesome-foundation/cfntop/issues/6)) ([f1bf311](https://github.com/awesome-foundation/cfntop/commit/f1bf311d55264d008b8ae9c090b541ccd9181a31))
+
 ## [0.3.0](https://github.com/awesome-foundation/cfntop/compare/v0.2.0...v0.3.0) (2026-03-27)
 
 
