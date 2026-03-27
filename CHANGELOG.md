@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/awesome-foundation/cfntop/compare/v0.4.0...v0.4.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* download URLs in README ([#8](https://github.com/awesome-foundation/cfntop/issues/8)) ([0e8f47a](https://github.com/awesome-foundation/cfntop/commit/0e8f47a5cabd7c746df01b8761130b27eecdfadc))
+* use /latest/ download URLs with x-release-please-version markers ([0e8f47a](https://github.com/awesome-foundation/cfntop/commit/0e8f47a5cabd7c746df01b8761130b27eecdfadc))
+
 ## [0.4.0](https://github.com/awesome-foundation/cfntop/compare/v0.3.0...v0.4.0) (2026-03-27)
 
 
