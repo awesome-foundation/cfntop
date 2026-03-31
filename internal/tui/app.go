@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +18,11 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 type pollMsg PollResult
 type tickMsg time.Time
 type spinnerTickMsg time.Time
+type ecsCheckTickMsg time.Time
+type ecsCheckMsg struct {
+	stacks []string // CF stack names with active ECS deploys
+	err    error
+}
 type detailsMsg struct {
 	stackName string
 	resources []ResourceState
@@ -76,7 +82,7 @@ func (m Model) Init() tea.Cmd {
 		// Demo mode — no polling, just render
 		return nil
 	}
-	return tea.Batch(m.poll(), m.tick(), m.spinnerTick())
+	return tea.Batch(m.poll(), m.tick(), m.spinnerTick(), m.ecsCheckTick())
 }
 
 func (m Model) spinnerTick() tea.Cmd {
@@ -86,6 +92,7 @@ func (m Model) spinnerTick() tea.Cmd {
 }
 
 const inactiveDetailInterval = time.Minute
+const ecsCheckInterval = 15 * time.Second
 
 func (m *Model) poll() tea.Cmd {
 	now := time.Now()
@@ -115,6 +122,22 @@ func (m Model) tick() tea.Cmd {
 	return tea.Tick(m.interval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func (m Model) ecsCheckTick() tea.Cmd {
+	return tea.Tick(ecsCheckInterval, func(t time.Time) tea.Msg {
+		return ecsCheckTickMsg(t)
+	})
+}
+
+func (m Model) ecsCheck() tea.Cmd {
+	ecsClient := m.ecsClient
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		stacks, err := CheckActiveECSDeploys(ctx, ecsClient)
+		return ecsCheckMsg{stacks: stacks, err: err}
+	}
 }
 
 func (m Model) fetchDetails(stackName string) tea.Cmd {
@@ -271,6 +294,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinnerIndex = (m.spinnerIndex + 1) % len(spinnerFrames)
 		if m.loading || len(m.loadingStacks) > 0 {
 			return m, m.spinnerTick()
+		}
+
+	case ecsCheckTickMsg:
+		return m, tea.Batch(m.ecsCheck(), m.ecsCheckTick())
+
+	case ecsCheckMsg:
+		if msg.err != nil || len(msg.stacks) == 0 {
+			break
+		}
+		// Auto-expand stacks with active ECS deploys and fetch their details
+		var cmds []tea.Cmd
+		for _, name := range msg.stacks {
+			for i := range m.stacks {
+				if m.stacks[i].Summary.StackName != name {
+					continue
+				}
+				if !m.stacks[i].Expanded {
+					m.stacks[i].Expanded = true
+				}
+				if !m.loadingStacks[name] {
+					m.loadingStacks[name] = true
+					cmds = append(cmds, m.fetchDetails(name))
+				}
+				break
+			}
+		}
+		if len(cmds) > 0 {
+			cmds = append(cmds, m.spinnerTick())
+			return m, tea.Batch(cmds...)
 		}
 
 	case tickMsg:
