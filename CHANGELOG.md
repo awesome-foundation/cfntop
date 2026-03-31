@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/awesome-foundation/cfntop/compare/v0.4.0...v0.5.0) (2026-03-31)
+
+
+### Features
+
+* auto-expand stacks with active ECS deployments ([b8bdb94](https://github.com/awesome-foundation/cfntop/commit/b8bdb94a1776dcf55a236af576662e43d54322f1))
+* detect active ECS deployments and auto-expand their CloudFormation stacks ([#10](https://github.com/awesome-foundation/cfntop/issues/10)) ([b8bdb94](https://github.com/awesome-foundation/cfntop/commit/b8bdb94a1776dcf55a236af576662e43d54322f1))
+
+
+### Bug Fixes
+
+* download URLs in README ([#8](https://github.com/awesome-foundation/cfntop/issues/8)) ([0e8f47a](https://github.com/awesome-foundation/cfntop/commit/0e8f47a5cabd7c746df01b8761130b27eecdfadc))
+* use /latest/ download URLs with x-release-please-version markers ([0e8f47a](https://github.com/awesome-foundation/cfntop/commit/0e8f47a5cabd7c746df01b8761130b27eecdfadc))
+
 ## [0.4.0](https://github.com/awesome-foundation/cfntop/compare/v0.3.0...v0.4.0) (2026-03-27)
 
 
