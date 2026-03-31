@@ -39,6 +39,8 @@ type ECSServiceState struct {
 
 // ECSAPI abstracts the ECS API calls needed.
 type ECSAPI interface {
+	ListClusters(ctx context.Context, params *ecs.ListClustersInput, optFns ...func(*ecs.Options)) (*ecs.ListClustersOutput, error)
+	ListServices(ctx context.Context, params *ecs.ListServicesInput, optFns ...func(*ecs.Options)) (*ecs.ListServicesOutput, error)
 	DescribeServices(ctx context.Context, params *ecs.DescribeServicesInput, optFns ...func(*ecs.Options)) (*ecs.DescribeServicesOutput, error)
 	ListTasks(ctx context.Context, params *ecs.ListTasksInput, optFns ...func(*ecs.Options)) (*ecs.ListTasksOutput, error)
 	DescribeTasks(ctx context.Context, params *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error)
@@ -179,4 +181,89 @@ func FetchECSServiceState(ctx context.Context, ecsClient ECSAPI, physicalID stri
 	}
 
 	return state, nil
+}
+
+// CheckActiveECSDeploys discovers all ECS clusters and services, returning the
+// CF stack names that have services with an IN_PROGRESS deployment rollout.
+func CheckActiveECSDeploys(ctx context.Context, ecsClient ECSAPI) ([]string, error) {
+	if ecsClient == nil {
+		return nil, nil
+	}
+
+	// Discover all clusters
+	var clusterArns []string
+	var nextToken *string
+	for {
+		out, err := ecsClient.ListClusters(ctx, &ecs.ListClustersInput{NextToken: nextToken})
+		if err != nil {
+			return nil, err
+		}
+		clusterArns = append(clusterArns, out.ClusterArns...)
+		nextToken = out.NextToken
+		if nextToken == nil {
+			break
+		}
+	}
+
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, clusterArn := range clusterArns {
+		// List services in this cluster
+		var serviceArns []string
+		var svcToken *string
+		for {
+			out, err := ecsClient.ListServices(ctx, &ecs.ListServicesInput{
+				Cluster:   aws.String(clusterArn),
+				NextToken: svcToken,
+			})
+			if err != nil {
+				break // non-fatal per cluster
+			}
+			serviceArns = append(serviceArns, out.ServiceArns...)
+			svcToken = out.NextToken
+			if svcToken == nil {
+				break
+			}
+		}
+
+		// Describe in chunks of 10
+		for i := 0; i < len(serviceArns); i += 10 {
+			end := i + 10
+			if end > len(serviceArns) {
+				end = len(serviceArns)
+			}
+			out, err := ecsClient.DescribeServices(ctx, &ecs.DescribeServicesInput{
+				Cluster:  aws.String(clusterArn),
+				Services: serviceArns[i:end],
+				Include:  []ecstypes.ServiceField{ecstypes.ServiceFieldTags},
+			})
+			if err != nil {
+				continue
+			}
+			for _, svc := range out.Services {
+				hasActive := false
+				for _, d := range svc.Deployments {
+					if d.RolloutState == ecstypes.DeploymentRolloutStateInProgress {
+						hasActive = true
+						break
+					}
+				}
+				if !hasActive {
+					continue
+				}
+				for _, tag := range svc.Tags {
+					if aws.ToString(tag.Key) == "aws:cloudformation:stack-name" {
+						name := aws.ToString(tag.Value)
+						if name != "" && !seen[name] {
+							seen[name] = true
+							result = append(result, name)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return result, nil
 }
